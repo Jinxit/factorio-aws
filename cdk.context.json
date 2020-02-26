@@ -1,0 +1,33 @@
+{
+  "@aws-cdk/core:enableStackNameDuplicates": "true",
+  "aws-cdk:enableDiffNoFail": "true",
+  "vpc-provider:account=808354942258:filter.vpc-id=vpc-016c02e60ed3582ad:region=eu-north-1:returnAsymmetricSubnets=true": {
+    "vpcId": "vpc-016c02e60ed3582ad",
+    "vpcCidrBlock": "10.0.0.0/16",
+    "availabilityZones": [],
+    "subnetGroups": [
+      {
+        "name": "Public",
+        "type": "Public",
+        "subnets": [
+          {
+            "subnetId": "subnet-06837642a68ce8b64",
+            "cidr": "10.0.0.0/24",
+            "availabilityZone": "eu-north-1a",
+            "routeTableId": "rtb-0429bdd7ae43795a3"
+          },
+          {
+            "subnetId": "subnet-035c0f184cd1411fa",
+            "cidr": "10.0.1.0/24",
+            "availabilityZone": "eu-north-1b",
+            "routeTableId": "rtb-0429bdd7ae43795a3"
+          }
+        ]
+      }
+    ]
+  },
+  "hosted-zone:account=808354942258:domainName=doush.io:region=eu-north-1": {
+    "Id": "/hostedzone/Z3QRD20ASE2MYI",
+    "Name": "doush.io."
+  }
+}
