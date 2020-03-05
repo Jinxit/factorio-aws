@@ -90,6 +90,8 @@ public class FactorioCluster extends Construct {
         );
 
         var dynamoTable = Table.Builder.create(this, "table")
+                .tableName(this.getNode().getPath().replaceAll("/", "-") +
+                        domainName.replaceAll("\\.", "_"))
                 .billingMode(BillingMode.PAY_PER_REQUEST)
                 .partitionKey(Attribute.builder().name("serverName").type(AttributeType.STRING).build())
                 .removalPolicy(RemovalPolicy.DESTROY)
@@ -205,6 +207,30 @@ public class FactorioCluster extends Construct {
                 .build();
 
         dynamoTable.grantReadData(codeBuildCdk.getRole());
+        codeBuildCdk.getRole().addManagedPolicy(
+                ManagedPolicy.fromAwsManagedPolicyName("policy/IAMFullAccess")
+        );
+        codeBuildCdk.getRole().addManagedPolicy(
+                ManagedPolicy.fromAwsManagedPolicyName("policy/AmazonS3FullAccess")
+        );
+        codeBuildCdk.getRole().addManagedPolicy(
+                ManagedPolicy.fromAwsManagedPolicyName("policy/AmazonVPCFullAccess")
+        );
+        codeBuildCdk.getRole().addManagedPolicy(
+                ManagedPolicy.fromAwsManagedPolicyName("policy/AWSCodeDeployRoleForECS")
+        );
+        codeBuildCdk.getRole().addManagedPolicy(
+                ManagedPolicy.fromAwsManagedPolicyName("policy/AmazonECS_FullAccess")
+        );
+        codeBuildCdk.getRole().addManagedPolicy(
+                ManagedPolicy.fromAwsManagedPolicyName("policy/AWSCloudFormationFullAccess")
+        );
+        codeBuildCdk.getRole().addManagedPolicy(
+                ManagedPolicy.fromAwsManagedPolicyName("policy/IAMFullAccess")
+        );
+        codeBuildCdk.getRole().addManagedPolicy(
+                ManagedPolicy.fromAwsManagedPolicyName("policy/IAMFullAccess")
+        );
 
         var oauthToken = SecretValue.secretsManager("FactorioCredentials",
                 SecretsManagerSecretOptions.builder()
