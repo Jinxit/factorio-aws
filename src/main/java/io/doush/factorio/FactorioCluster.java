@@ -32,10 +32,7 @@ import software.amazon.awscdk.services.ecr.Repository;
 import software.amazon.awscdk.services.ecs.AddCapacityOptions;
 import software.amazon.awscdk.services.ecs.Cluster;
 import software.amazon.awscdk.services.ecs.ClusterAttributes;
-import software.amazon.awscdk.services.iam.ManagedPolicy;
-import software.amazon.awscdk.services.iam.PolicyStatement;
-import software.amazon.awscdk.services.iam.Role;
-import software.amazon.awscdk.services.iam.ServicePrincipal;
+import software.amazon.awscdk.services.iam.*;
 import software.amazon.awscdk.services.lambda.Code;
 import software.amazon.awscdk.services.lambda.Function;
 import software.amazon.awscdk.services.lambda.LayerVersion;
@@ -224,6 +221,12 @@ public class FactorioCluster extends Construct {
                 .role(cdkRole)
                 .vpc(vpc)
                 .build();
+
+        cdkRole.addToPolicy(PolicyStatement.Builder.create()
+                .actions(List.of("*"))
+                .resources(List.of("*"))
+                .build()
+        );
 
         dynamoTable.grantReadData(cdkRole);
         cdkRole.addManagedPolicy(
