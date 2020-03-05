@@ -127,7 +127,7 @@ public class FactorioCluster extends Construct {
                 .assumedBy(ecsTasksPrincipal)
                 .build();
 
-        ecrRepo.grantPull(executionRole);
+        ecrRepo.grantPullPush(executionRole);
 
         var taskRole = Role.Builder.create(this, "taskRole")
                 .managedPolicies(List.of(
