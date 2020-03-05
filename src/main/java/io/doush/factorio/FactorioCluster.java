@@ -89,9 +89,9 @@ public class FactorioCluster extends Construct {
                         .build()
         );
 
+        var tableName = this.getNode().getPath().replaceAll("/", "-");
         var dynamoTable = Table.Builder.create(this, "table")
-                .tableName(this.getNode().getPath().replaceAll("/", "-") +
-                        domainName.replaceAll("\\.", "_"))
+                .tableName(tableName)
                 .billingMode(BillingMode.PAY_PER_REQUEST)
                 .partitionKey(Attribute.builder().name("serverName").type(AttributeType.STRING).build())
                 .removalPolicy(RemovalPolicy.DESTROY)
@@ -156,17 +156,17 @@ public class FactorioCluster extends Construct {
             var dynamoClient = AmazonDynamoDBClientBuilder.standard()
                     .withRegion(System.getenv("CDK_DEFAULT_REGION"))
                     .build();
-            items = dynamoClient.scan(dynamoTable.getTableName(), List.of(
+            items = dynamoClient.scan(tableName, List.of(
                     "serverName",
                     "subDomain",
                     "version"
             )).getItems();
         } catch (ResourceNotFoundException ex) {
-            System.out.println("Table does not exist (yet)");
-            ex.printStackTrace(System.out);
+            //System.err.println("Table " + tableName + " does not exist (yet)");
+            //ex.printStackTrace(System.err);
         } catch (Exception ex) {
-            System.err.println("Failed to fetch from DynamoDB");
-            ex.printStackTrace(System.err);
+            //System.err.println("Failed to fetch from DynamoDB");
+            //ex.printStackTrace(System.err);
         }
 
         /*
@@ -193,43 +193,42 @@ public class FactorioCluster extends Construct {
             );
         }
 
+        var environment = BuildEnvironment.builder().buildImage(LinuxBuildImage.STANDARD_3_0).build();
         var codeBuildDocker = PipelineProject.Builder.create(this, "dockerCodeBuild")
-                .environment(BuildEnvironment.builder().buildImage(LinuxBuildImage.STANDARD_3_0).build())
+                .environment(environment)
                 .vpc(vpc)
                 .build();
 
-        //var codeBuildPrincipal = new ServicePrincipal("codebuild.amazonaws.com");
-        //var cdkRole = Role.Builder.create(this, "cdkRole").assumedBy(codeBuildPrincipal).build();
+        var codeBuildPrincipal = new ServicePrincipal("codebuild.amazonaws.com");
+        var cdkRole = Role.Builder.create(this, "cdkRole").assumedBy(codeBuildPrincipal).build();
 
         var codeBuildCdk = PipelineProject.Builder.create(this, "cdkCodeBuild")
-                .environment(BuildEnvironment.builder().buildImage(LinuxBuildImage.STANDARD_3_0).build())
+                .environment(environment)
+                .role(cdkRole)
                 .vpc(vpc)
                 .build();
 
-        dynamoTable.grantReadData(codeBuildCdk.getRole());
-        codeBuildCdk.getRole().addManagedPolicy(
+        dynamoTable.grantReadData(cdkRole);
+        cdkRole.addManagedPolicy(
                 ManagedPolicy.fromAwsManagedPolicyName("policy/IAMFullAccess")
         );
-        codeBuildCdk.getRole().addManagedPolicy(
+        cdkRole.addManagedPolicy(
                 ManagedPolicy.fromAwsManagedPolicyName("policy/AmazonS3FullAccess")
         );
-        codeBuildCdk.getRole().addManagedPolicy(
+        cdkRole.addManagedPolicy(
                 ManagedPolicy.fromAwsManagedPolicyName("policy/AmazonVPCFullAccess")
         );
-        codeBuildCdk.getRole().addManagedPolicy(
+        cdkRole.addManagedPolicy(
                 ManagedPolicy.fromAwsManagedPolicyName("policy/AWSCodeDeployRoleForECS")
         );
-        codeBuildCdk.getRole().addManagedPolicy(
+        cdkRole.addManagedPolicy(
                 ManagedPolicy.fromAwsManagedPolicyName("policy/AmazonECS_FullAccess")
         );
-        codeBuildCdk.getRole().addManagedPolicy(
+        cdkRole.addManagedPolicy(
                 ManagedPolicy.fromAwsManagedPolicyName("policy/AWSCloudFormationFullAccess")
         );
-        codeBuildCdk.getRole().addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("policy/IAMFullAccess")
-        );
-        codeBuildCdk.getRole().addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("policy/IAMFullAccess")
+        cdkRole.addManagedPolicy(
+                ManagedPolicy.fromAwsManagedPolicyName("policy/CloudWatchFullAccess ")
         );
 
         var oauthToken = SecretValue.secretsManager("FactorioCredentials",
