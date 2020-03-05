@@ -127,7 +127,7 @@ public class FactorioCluster extends Construct {
                 .assumedBy(ecsTasksPrincipal)
                 .build();
 
-        ecrRepo.grantPullPush(executionRole);
+        ecrRepo.grantPull(executionRole);
 
         var taskRole = Role.Builder.create(this, "taskRole")
                 .managedPolicies(List.of(
@@ -205,7 +205,7 @@ public class FactorioCluster extends Construct {
                 .vpc(vpc)
                 .build();
 
-        ecrRepo.grantPull(codeBuildDocker.getGrantPrincipal());
+        ecrRepo.grantPullPush(codeBuildDocker.getGrantPrincipal());
 
         var codeBuildPrincipal = new ServicePrincipal("codebuild.amazonaws.com");
         var cdkRole = Role.Builder.create(this, "cdkRole").assumedBy(codeBuildPrincipal).build();
