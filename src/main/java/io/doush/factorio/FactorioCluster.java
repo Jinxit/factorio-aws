@@ -204,6 +204,8 @@ public class FactorioCluster extends Construct {
                 .vpc(vpc)
                 .build();
 
+        ecrRepo.grantPull(codeBuildDocker.getGrantPrincipal());
+
         var codeBuildPrincipal = new ServicePrincipal("codebuild.amazonaws.com");
         var cdkRole = Role.Builder.create(this, "cdkRole").assumedBy(codeBuildPrincipal).build();
 
