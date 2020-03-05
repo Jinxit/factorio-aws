@@ -13,10 +13,7 @@ import software.amazon.awscdk.services.apigateway.LambdaIntegration;
 import software.amazon.awscdk.services.apigateway.MethodOptions;
 import software.amazon.awscdk.services.apigateway.RestApi;
 import software.amazon.awscdk.services.autoscaling.RollingUpdateConfiguration;
-import software.amazon.awscdk.services.codebuild.BuildEnvironment;
-import software.amazon.awscdk.services.codebuild.BuildSpec;
-import software.amazon.awscdk.services.codebuild.LinuxBuildImage;
-import software.amazon.awscdk.services.codebuild.PipelineProject;
+import software.amazon.awscdk.services.codebuild.*;
 import software.amazon.awscdk.services.codepipeline.Artifact;
 import software.amazon.awscdk.services.codepipeline.Pipeline;
 import software.amazon.awscdk.services.codepipeline.StageOptions;
@@ -273,6 +270,12 @@ public class FactorioCluster extends Construct {
                                             .type(CodeBuildActionType.BUILD)
                                             .variablesNamespace("factorio-" + server.get("version")
                                                     .getS().replaceAll("\\.", "_"))
+                                            .environmentVariables(Map.of(
+                                                    "FACTORIO_VERSION", BuildEnvironmentVariable.builder()
+                                                            .type(BuildEnvironmentVariableType.PLAINTEXT)
+                                                            .value(server.get("version").getS())
+                                                            .build()
+                                            ))
                                             .build()
                                     ).collect(Collectors.toList()))
                                     .build()
@@ -285,6 +288,12 @@ public class FactorioCluster extends Construct {
                                                 .actionName("Deploy")
                                                 .project(codeBuildCdk)
                                                 .input(Artifact.artifact("factorio-aws"))
+                                                .environmentVariables(Map.of(
+                                                        "DOMAIN_NAME", BuildEnvironmentVariable.builder()
+                                                                .type(BuildEnvironmentVariableType.PLAINTEXT)
+                                                                .value(domainName)
+                                                                .build()
+                                                ))
                                                 .build()
                                 ))
                                 .build()
