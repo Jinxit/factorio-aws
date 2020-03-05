@@ -29,5 +29,10 @@
   "hosted-zone:account=808354942258:domainName=doush.io:region=eu-north-1": {
     "Id": "/hostedzone/Z3QRD20ASE2MYI",
     "Name": "doush.io."
-  }
+  },
+  "availability-zones:account=808354942258:region=eu-north-1": [
+    "eu-north-1a",
+    "eu-north-1b",
+    "eu-north-1c"
+  ]
 }

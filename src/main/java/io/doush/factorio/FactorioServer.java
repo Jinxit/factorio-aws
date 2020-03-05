@@ -1,25 +1,22 @@
-package io.doush;
+package io.doush.factorio;
 
-import software.amazon.awscdk.core.*;
+import org.jetbrains.annotations.NotNull;
+import software.amazon.awscdk.core.Construct;
+import software.amazon.awscdk.core.Duration;
+import software.amazon.awscdk.core.RemovalPolicy;
 import software.amazon.awscdk.services.applicationautoscaling.AdjustmentType;
 import software.amazon.awscdk.services.applicationautoscaling.BasicStepScalingPolicyProps;
 import software.amazon.awscdk.services.applicationautoscaling.EnableScalingProps;
 import software.amazon.awscdk.services.applicationautoscaling.ScalingInterval;
 import software.amazon.awscdk.services.cloudwatch.Metric;
 import software.amazon.awscdk.services.cloudwatch.MetricProps;
-import software.amazon.awscdk.services.ec2.SecurityGroup;
-import software.amazon.awscdk.services.ec2.SubnetSelection;
-import software.amazon.awscdk.services.ec2.Vpc;
-import software.amazon.awscdk.services.ec2.VpcLookupOptions;
-import software.amazon.awscdk.services.ecr.Repository;
+import software.amazon.awscdk.services.ec2.*;
+import software.amazon.awscdk.services.ecr.IRepository;
 import software.amazon.awscdk.services.ecs.*;
-import software.amazon.awscdk.services.iam.ManagedPolicy;
-import software.amazon.awscdk.services.iam.Role;
-import software.amazon.awscdk.services.iam.RoleProps;
-import software.amazon.awscdk.services.iam.ServicePrincipal;
+import software.amazon.awscdk.services.ecs.Protocol;
+import software.amazon.awscdk.services.iam.*;
 import software.amazon.awscdk.services.logs.RetentionDays;
-import software.amazon.awscdk.services.route53.HostedZone;
-import software.amazon.awscdk.services.route53.HostedZoneProviderProps;
+import software.amazon.awscdk.services.route53.IHostedZone;
 import software.amazon.awscdk.services.s3.BlockPublicAccess;
 import software.amazon.awscdk.services.s3.Bucket;
 import software.amazon.awscdk.services.s3.BucketEncryption;
@@ -28,54 +25,20 @@ import software.amazon.awscdk.services.s3.BucketProps;
 import java.util.List;
 import java.util.Map;
 
-public class FactorioStack extends Stack {
-    public FactorioStack(final Construct scope, final String serverName, final String domainName,
-                         final String subDomain,
-                         final String version, final StackProps props) {
-        super(scope, "factorio-" + serverName, props);
+public class FactorioServer extends Construct {
+    public FactorioServer(@NotNull Construct scope, @NotNull String id,
+                          String serverName, String domainName,
+                          String subDomain, String version, IHostedZone hostedZone,
+                          ISecurityGroup securityGroup, ICluster cluster, IRole executionRole,
+                          Role taskRole, IRepository ecrRepo) {
+        super(scope, id);
 
-        var hostedZone = HostedZone.fromLookup(this, "hostedZone", HostedZoneProviderProps.builder()
-                .domainName(domainName)
-                .build()
-        );
-
-        var vpc = Vpc.fromLookup(this, "vpc", VpcLookupOptions.builder()
-                .vpcId("vpc-016c02e60ed3582ad")
-                .build()
-        );
-        var securityGroup = SecurityGroup.fromSecurityGroupId(this, "securityGroup",
-                "sg-0b5755e882ace39cc");
-        var cluster = Cluster.fromClusterAttributes(this, "cluster",
-                ClusterAttributes.builder()
-                        .clusterArn("arn:aws:ecs:eu-north-1:808354942258")
-                        .clusterName("factorio")
-                        .vpc(vpc)
-                        .securityGroups(List.of(securityGroup))
-                        .build()
-        );
 
         var bucket = new Bucket(this, "bucket", BucketProps.builder()
                 .blockPublicAccess(BlockPublicAccess.BLOCK_ALL)
                 .encryption(BucketEncryption.S3_MANAGED)
                 .removalPolicy(RemovalPolicy.DESTROY)
                 .versioned(false)
-                .build()
-        );
-
-
-        var executionRole = Role.fromRoleArn(this, "executionRole", "arn:aws:iam::808354942258" +
-                ":role/ecsTaskExecutionRole");
-        var taskRole = new Role(this, "taskRole", RoleProps.builder()
-                .roleName("FactorioEcs-" + serverName)
-                .managedPolicies(List.of(
-                        ManagedPolicy.fromManagedPolicyName(this, "FactorioRoute53",
-                                "FactorioRoute53"),
-                        ManagedPolicy.fromManagedPolicyName(this, "FactorioCloudwatch",
-                                "FactorioCloudwatch"),
-                        ManagedPolicy.fromAwsManagedPolicyName("service-role" +
-                                "/AmazonECSTaskExecutionRolePolicy")
-                ))
-                .assumedBy(new ServicePrincipal("ecs-tasks.amazonaws.com"))
                 .build()
         );
 
@@ -89,8 +52,6 @@ public class FactorioStack extends Stack {
                         .taskRole(taskRole)
                         .build()
         );
-
-        var ecrRepo = Repository.fromRepositoryName(this, "repository", "factorio");
 
         var containerImage = ContainerImage.fromEcrRepository(ecrRepo, version);
 
@@ -127,15 +88,22 @@ public class FactorioStack extends Stack {
                 .build()
         );
 
+        container.addPortMappings(PortMapping.builder()
+                .containerPort(27015)
+                .hostPort(27015)
+                .protocol(Protocol.TCP)
+                .build()
+        );
+
         var service = new FargateService(this, "service", FargateServiceProps.builder()
                 .assignPublicIp(true)
                 .cluster(cluster)
-                .desiredCount(1)
+                .desiredCount(0)
                 .minHealthyPercent(100)
                 .maxHealthyPercent(200)
                 .serviceName("factorio-" + serverName)
                 .securityGroup(securityGroup)
-                .vpcSubnets(SubnetSelection.builder().onePerAz(true).build())
+                .vpcSubnets(SubnetSelection.builder().onePerAz(true).subnetType(SubnetType.PUBLIC).build())
                 .deploymentController(DeploymentController.builder().type(DeploymentControllerType.ECS).build())
                 .platformVersion(FargatePlatformVersion.LATEST)
                 .taskDefinition(taskDefinition)
@@ -149,7 +117,6 @@ public class FactorioStack extends Stack {
         );
 
         var playersOnline = new Metric(MetricProps.builder()
-                .account(props.getEnv().getAccount())
                 .metricName("PlayersOnline")
                 .namespace("Factorio-" + serverName)
                 .period(Duration.minutes(15))

@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: openjdk11
+      nodejs: 12
+    commands:
+      - npm i -g aws-cdk
+  build:
+    commands:
+      - (cd lambda && npm install)
+      - mvn -B compile
+  post_build:
+    commands:
+      - cdk deploy -c domainName=$DOMAIN_NAME --require-approval never --strict
