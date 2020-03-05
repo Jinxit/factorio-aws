@@ -193,9 +193,17 @@ public class FactorioCluster extends Construct {
             );
         }
 
-        var environment = BuildEnvironment.builder().buildImage(LinuxBuildImage.STANDARD_3_0).build();
         var codeBuildDocker = PipelineProject.Builder.create(this, "dockerCodeBuild")
-                .environment(environment)
+                .environment(BuildEnvironment.builder()
+                        .computeType(ComputeType.SMALL)
+                        .buildImage(LinuxBuildImage.STANDARD_3_0)
+                        .environmentVariables(Map.of(
+                                "FACTORIO_VERSION", BuildEnvironmentVariable.builder()
+                                        .type(BuildEnvironmentVariableType.PLAINTEXT)
+                                        .value("")
+                                        .build()
+                        ))
+                        .build())
                 .vpc(vpc)
                 .build();
 
@@ -203,32 +211,41 @@ public class FactorioCluster extends Construct {
         var cdkRole = Role.Builder.create(this, "cdkRole").assumedBy(codeBuildPrincipal).build();
 
         var codeBuildCdk = PipelineProject.Builder.create(this, "cdkCodeBuild")
-                .environment(environment)
+                .environment(BuildEnvironment.builder()
+                        .computeType(ComputeType.SMALL)
+                        .buildImage(LinuxBuildImage.STANDARD_3_0)
+                        .environmentVariables(Map.of(
+                                "DOMAIN_NAME", BuildEnvironmentVariable.builder()
+                                        .type(BuildEnvironmentVariableType.PLAINTEXT)
+                                        .value(domainName)
+                                        .build()
+                        ))
+                        .build())
                 .role(cdkRole)
                 .vpc(vpc)
                 .build();
 
         dynamoTable.grantReadData(cdkRole);
         cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("policy/IAMFullAccess")
+                ManagedPolicy.fromAwsManagedPolicyName("IAMFullAccess")
         );
         cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("policy/AmazonS3FullAccess")
+                ManagedPolicy.fromAwsManagedPolicyName("AmazonS3FullAccess")
         );
         cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("policy/AmazonVPCFullAccess")
+                ManagedPolicy.fromAwsManagedPolicyName("AmazonVPCFullAccess")
         );
         cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("policy/AWSCodeDeployRoleForECS")
+                ManagedPolicy.fromAwsManagedPolicyName("AWSCodeDeployRoleForECS")
         );
         cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("policy/AmazonECS_FullAccess")
+                ManagedPolicy.fromAwsManagedPolicyName("AmazonECS_FullAccess")
         );
         cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("policy/AWSCloudFormationFullAccess")
+                ManagedPolicy.fromAwsManagedPolicyName("AWSCloudFormationFullAccess")
         );
         cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("policy/CloudWatchFullAccess ")
+                ManagedPolicy.fromAwsManagedPolicyName("CloudWatchFullAccess")
         );
 
         var oauthToken = SecretValue.secretsManager("FactorioCredentials",
