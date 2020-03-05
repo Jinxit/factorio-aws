@@ -264,7 +264,7 @@ public class FactorioCluster extends Construct {
                 .build();
 
         var codePipeline = Pipeline.Builder.create(this, "pipeline")
-                .restartExecutionOnUpdate(true)
+                .restartExecutionOnUpdate(false)
                 .artifactBucket(artifactBucket)
                 .build();
 
