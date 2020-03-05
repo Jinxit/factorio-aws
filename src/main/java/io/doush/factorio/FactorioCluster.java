@@ -326,6 +326,10 @@ public class FactorioCluster extends Construct {
                                                     "IMAGE_REPO_NAME", BuildEnvironmentVariable.builder()
                                                             .type(BuildEnvironmentVariableType.PLAINTEXT)
                                                             .value(ecrRepo.getRepositoryName())
+                                                            .build(),
+                                                    "AWS_ACCOUNT_ID", BuildEnvironmentVariable.builder()
+                                                            .type(BuildEnvironmentVariableType.PLAINTEXT)
+                                                            .value(System.getenv("CDK_DEFAULT_ACCOUNT"))
                                                             .build()
 
                                             ))
