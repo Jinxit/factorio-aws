@@ -200,6 +200,7 @@ public class FactorioCluster extends Construct {
                                         .value("")
                                         .build()
                         ))
+                        .privileged(true)
                         .build())
                 .vpc(vpc)
                 .build();
@@ -311,7 +312,7 @@ public class FactorioCluster extends Construct {
             codePipeline.addStage(StageOptions.builder()
                                     .stageName("Build")
                                     .actions(items.stream().map(server -> CodeBuildAction.Builder.create()
-                                            .actionName("Build-" + server.get("version").getS())
+                                            .actionName(server.get("version").getS())
                                             .project(codeBuildDocker)
                                             .input(Artifact.artifact("factorio-docker"))
                                             .type(CodeBuildActionType.BUILD)
@@ -321,7 +322,12 @@ public class FactorioCluster extends Construct {
                                                     "FACTORIO_VERSION", BuildEnvironmentVariable.builder()
                                                             .type(BuildEnvironmentVariableType.PLAINTEXT)
                                                             .value(server.get("version").getS())
+                                                            .build(),
+                                                    "IMAGE_REPO_NAME", BuildEnvironmentVariable.builder()
+                                                            .type(BuildEnvironmentVariableType.PLAINTEXT)
+                                                            .value(ecrRepo.getRepositoryName())
                                                             .build()
+
                                             ))
                                             .build()
                                     ).collect(Collectors.toList()))
