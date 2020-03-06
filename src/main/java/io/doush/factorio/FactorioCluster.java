@@ -338,6 +338,7 @@ public class FactorioCluster extends Construct {
                                     .build()
             );
         }
+
         codePipeline.addStage(StageOptions.builder()
                                 .stageName("Deploy")
                                 .actions(List.of(
