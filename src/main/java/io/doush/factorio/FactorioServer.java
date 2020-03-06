@@ -73,7 +73,7 @@ public class FactorioServer extends Construct {
                         .environment(new TreeMap<>() {{
                             put("S3_BUCKET", bucket.getBucketName());
                             put("HOSTED_ZONE", hostedZone.getHostedZoneId());
-                            put("DOMAIN", serverName + ".factorio." + domainName);
+                            put("DOMAIN", "factorio." + domainName);
                             put("SERVER_NAME", serverName);
                         }})
                         .essential(true)

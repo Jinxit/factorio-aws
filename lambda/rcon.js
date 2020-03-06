@@ -4,7 +4,7 @@ const rcon = require('rcon');
 exports.main = async function(event, context) {
     try {
         const response = await new Promise((resolve, reject) => {
-            const client = new Rcon(event.serverName + '.' + process.env.DOMAIN_NAME, 27015, password, {
+            const client = new Rcon(event.serverName + '.factorio.' + process.env.DOMAIN_NAME, 27015, password, {
                 tcp: true,
                 challenge: false
             });
