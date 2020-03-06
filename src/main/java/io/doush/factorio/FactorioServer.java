@@ -30,15 +30,23 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class FactorioServer extends Construct {
+    final Bucket bucket;
+    final FargateTaskDefinition taskDefinition;
+    final EcrImage containerImage;
+    final ContainerDefinition container;
+    final FargateService service;
+    final ScalableTaskCount scalableTaskCount;
+    final Metric playersOnline;
+
     public FactorioServer(@NotNull Construct scope, @NotNull String id,
                           String serverName, String domainName,
-                          String subDomain, String version, IHostedZone hostedZone,
+                          String version, IHostedZone hostedZone,
                           ISecurityGroup securityGroup, ICluster cluster, IRole executionRole,
                           Role taskRole, IRepository ecrRepo) {
         super(scope, id);
 
 
-        var bucket = new Bucket(this, "bucket", BucketProps.builder()
+        this.bucket = new Bucket(this, "bucket", BucketProps.builder()
                 .blockPublicAccess(BlockPublicAccess.BLOCK_ALL)
                 .encryption(BucketEncryption.S3_MANAGED)
                 .removalPolicy(RemovalPolicy.DESTROY)
@@ -48,7 +56,7 @@ public class FactorioServer extends Construct {
 
         bucket.grantReadWrite(taskRole);
 
-        var taskDefinition = new FargateTaskDefinition(this, "taskDefinition",
+        this.taskDefinition = new FargateTaskDefinition(this, "taskDefinition",
                 FargateTaskDefinitionProps.builder()
                         .cpu(512)
                         .memoryLimitMiB(1024)
@@ -57,15 +65,15 @@ public class FactorioServer extends Construct {
                         .build()
         );
 
-        var containerImage = ContainerImage.fromEcrRepository(ecrRepo, version);
+        this.containerImage = ContainerImage.fromEcrRepository(ecrRepo, version);
 
-        var container = taskDefinition.addContainer("container",
+        this.container = taskDefinition.addContainer("container",
                 ContainerDefinitionOptions.builder()
                         .cpu(512)
                         .environment(new TreeMap<>() {{
                             put("S3_BUCKET", bucket.getBucketName());
                             put("HOSTED_ZONE", hostedZone.getHostedZoneId());
-                            put("DOMAIN", subDomain + "." + domainName);
+                            put("DOMAIN", serverName + ".factorio." + domainName);
                             put("SERVER_NAME", serverName);
                         }})
                         .essential(true)
@@ -99,7 +107,7 @@ public class FactorioServer extends Construct {
                 .build()
         );
 
-        var service = new FargateService(this, "service", FargateServiceProps.builder()
+        this.service = new FargateService(this, "service", FargateServiceProps.builder()
                 .assignPublicIp(true)
                 .cluster(cluster)
                 .desiredCount(0)
@@ -114,13 +122,13 @@ public class FactorioServer extends Construct {
                 .build()
         );
 
-        var scalableTaskCount = service.autoScaleTaskCount(EnableScalingProps.builder()
+        this.scalableTaskCount = service.autoScaleTaskCount(EnableScalingProps.builder()
                 .minCapacity(0)
                 .maxCapacity(1)
                 .build()
         );
 
-        var playersOnline = new Metric(MetricProps.builder()
+        this.playersOnline = new Metric(MetricProps.builder()
                 .metricName("PlayersOnline")
                 .namespace("Factorio-" + serverName)
                 .period(Duration.minutes(15))

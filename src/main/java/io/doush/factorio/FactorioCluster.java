@@ -4,10 +4,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
 import org.jetbrains.annotations.NotNull;
-import software.amazon.awscdk.core.Construct;
-import software.amazon.awscdk.core.RemovalPolicy;
-import software.amazon.awscdk.core.SecretValue;
-import software.amazon.awscdk.core.SecretsManagerSecretOptions;
+import software.amazon.awscdk.core.*;
 import software.amazon.awscdk.services.apigateway.LambdaIntegration;
 import software.amazon.awscdk.services.apigateway.MethodOptions;
 import software.amazon.awscdk.services.apigateway.RestApi;
@@ -19,20 +16,16 @@ import software.amazon.awscdk.services.codepipeline.actions.CodeBuildAction;
 import software.amazon.awscdk.services.codepipeline.actions.CodeBuildActionType;
 import software.amazon.awscdk.services.codepipeline.actions.GitHubSourceAction;
 import software.amazon.awscdk.services.codepipeline.actions.GitHubTrigger;
-import software.amazon.awscdk.services.dynamodb.Attribute;
-import software.amazon.awscdk.services.dynamodb.AttributeType;
-import software.amazon.awscdk.services.dynamodb.BillingMode;
-import software.amazon.awscdk.services.dynamodb.Table;
+import software.amazon.awscdk.services.dynamodb.*;
 import software.amazon.awscdk.services.ec2.IVpc;
 import software.amazon.awscdk.services.ec2.Peer;
 import software.amazon.awscdk.services.ec2.Port;
 import software.amazon.awscdk.services.ec2.SecurityGroup;
+import software.amazon.awscdk.services.ecr.LifecycleRule;
 import software.amazon.awscdk.services.ecr.Repository;
+import software.amazon.awscdk.services.ecr.TagStatus;
 import software.amazon.awscdk.services.ecs.Cluster;
-import software.amazon.awscdk.services.iam.ManagedPolicy;
-import software.amazon.awscdk.services.iam.PolicyStatement;
-import software.amazon.awscdk.services.iam.Role;
-import software.amazon.awscdk.services.iam.ServicePrincipal;
+import software.amazon.awscdk.services.iam.*;
 import software.amazon.awscdk.services.lambda.Code;
 import software.amazon.awscdk.services.lambda.Function;
 import software.amazon.awscdk.services.lambda.LayerVersion;
@@ -47,8 +40,28 @@ import java.util.stream.Collectors;
 
 public class FactorioCluster extends Construct {
     public FactorioCluster(@NotNull Construct scope, @NotNull String id, String domainName,
-                           IVpc vpc) {
+                           IVpc vpc, String region, String account) {
         super(scope, id);
+
+        var tableName = this.getNode().getPath().replaceAll("/", "-");
+        var dynamoTable = Table.Builder.create(this, "table")
+                .tableName(tableName)
+                .billingMode(BillingMode.PAY_PER_REQUEST)
+                .partitionKey(Attribute.builder().name("serverName").type(AttributeType.STRING).build())
+                .removalPolicy(RemovalPolicy.DESTROY)
+                .serverSideEncryption(true)
+                .stream(StreamViewType.NEW_IMAGE)
+                .build();
+
+        var cluster = Cluster.Builder.create(this, "cluster")
+                .vpc(vpc)
+                .containerInsights(true)
+                .build();
+
+        String domainNameUnderlined = domainName.replaceAll("\\.", "_");
+        var api = RestApi.Builder.create(this, "restApi")
+                .restApiName("factorio_" + domainNameUnderlined)
+                .build();
 
         var commonLayer = LayerVersion.Builder.create(this, "common-layer")
                 .compatibleRuntimes(List.of(Runtime.NODEJS_12_X))
@@ -66,31 +79,39 @@ public class FactorioCluster extends Construct {
                 .environment(Collections.singletonMap(
                         "DOMAIN_NAME", domainName
                 ))
-                .events(List.of())
                 .build();
 
-        var api = RestApi.Builder.create(this, "restApi")
-                .build();
-
-        api.getRoot().addMethod("GET",
+        api.getRoot().addResource("rcon").addResource("{serverName}").addMethod("POST",
                 LambdaIntegration.Builder.create(lambdaRcon)
-                        .requestTemplates(new HashMap<>() {{
-                            put("application/json", "{ \"statusCode\": \"200\" }");
-                        }})
                         .build(),
                 MethodOptions.builder()
                         .apiKeyRequired(true)
                         .build()
         );
 
-        var tableName = this.getNode().getPath().replaceAll("/", "-");
-        var dynamoTable = Table.Builder.create(this, "table")
-                .tableName(tableName)
-                .billingMode(BillingMode.PAY_PER_REQUEST)
-                .partitionKey(Attribute.builder().name("serverName").type(AttributeType.STRING).build())
-                .removalPolicy(RemovalPolicy.DESTROY)
-                .serverSideEncryption(true)
+        //var lambdaScaleRole = Role.Builder.create(this, "lambdaScaleRole")
+        //        .assumedBy(new ServicePrincipal("lambda.amazonaws.com"))
+        //        .build();
+
+        var lambdaScale = Function.Builder.create(this, "lambdaScale")
+                .runtime(Runtime.NODEJS_12_X)
+                .layers(List.of(commonLayer))
+                .code(Code.fromAsset("lambda", AssetOptions.builder()
+                        .exclude(List.of("node_modules"))
+                        .build())
+                )
+                .handler("scale.main")
+                .environment(Collections.singletonMap("CLUSTER", cluster.getClusterName()))
+                //.role(lambdaScaleRole)
                 .build();
+
+        api.getRoot().addResource("scale").addResource("{service}").addMethod("PUT",
+                LambdaIntegration.Builder.create(lambdaScale)
+                        .build(),
+                MethodOptions.builder()
+                        .apiKeyRequired(true)
+                        .build()
+        );
 
         var hostedZone = HostedZone.fromLookup(this, "hostedZone",
                 HostedZoneProviderProps.builder()
@@ -98,23 +119,14 @@ public class FactorioCluster extends Construct {
                         .build()
         );
 
-        var cluster = Cluster.Builder.create(this, "cluster")
-                /*.capacity(AddCapacityOptions.builder()
-                        .associatePublicIpAddress(true)
-                        .allowAllOutbound(true)
-                        .rollingUpdateConfiguration(RollingUpdateConfiguration.builder()
-                                .minInstancesInService(0)
-                                .build()
-                        )
-                        .instanceType(InstanceType.of())
-                        .build()
-                )*/
-                .vpc(vpc)
-                .containerInsights(true)
-                .build();
-
         var ecrRepo = Repository.Builder.create(this, "repository")
                 .removalPolicy(RemovalPolicy.DESTROY)
+                .lifecycleRules(List.of(
+                        LifecycleRule.builder()
+                                .tagStatus(TagStatus.UNTAGGED)
+                                .maxImageAge(Duration.days(1))
+                                .build()
+                ))
                 .build();
 
         ServicePrincipal ecsTasksPrincipal = new ServicePrincipal("ecs-tasks.amazonaws.com");
@@ -128,13 +140,27 @@ public class FactorioCluster extends Construct {
 
         var taskRole = Role.Builder.create(this, "taskRole")
                 .managedPolicies(List.of(
-                        ManagedPolicy.fromManagedPolicyName(this, "FactorioRoute53",
-                                "FactorioRoute53"),
-                        ManagedPolicy.fromManagedPolicyName(this, "FactorioCloudwatch",
-                                "FactorioCloudwatch"),
                         ManagedPolicy.fromAwsManagedPolicyName("service-role" +
                                 "/AmazonECSTaskExecutionRolePolicy")
                 ))
+                .inlinePolicies(new TreeMap<>() {{
+                    put("FactorioRoute53", PolicyDocument.Builder.create()
+                            .statements(List.of(
+                                    PolicyStatement.Builder.create()
+                                            .actions(List.of("route53:ChangeResourceRecordSets"))
+                                            .resources(List.of(hostedZone.getHostedZoneArn()))
+                                            .build()
+                            ))
+                            .build());
+                    put("FactorioCloudwatch", PolicyDocument.Builder.create()
+                            .statements(List.of(
+                                    PolicyStatement.Builder.create()
+                                            .actions(List.of("cloudwatch:PutMetricData"))
+                                            .resources(List.of("*"))
+                                            .build()
+                            ))
+                            .build());
+                }})
                 .assumedBy(ecsTasksPrincipal)
                 .build();
 
@@ -152,7 +178,6 @@ public class FactorioCluster extends Construct {
                     .build();
             items = dynamoClient.scan(tableName, List.of(
                     "serverName",
-                    "subDomain",
                     "version"
             )).getItems();
         } catch (ResourceNotFoundException ex) {
@@ -163,28 +188,18 @@ public class FactorioCluster extends Construct {
             //ex.printStackTrace(System.err);
         }
 
-        /*
-        var attServerName = new AttributeValue("serverName").withS("name");
-        var attSubDomain  = new AttributeValue("subDomain").withS("sub");
-        var attVersion = new AttributeValue("version").withS("0.17.79");
-
-        var items = List.of(
-                Map.of(
-                        "serverName", attServerName,
-                        "subDomain", attSubDomain,
-                        "version", attVersion
-                )
-        );
-         */
-
         for (var item : items) {
             var serverName = item.get("serverName").getS();
-            var subDomain = item.get("subDomain").getS();
             var version = item.get("version").getS();
-            new FactorioServer(this, "factorio-server-" + serverName, serverName, domainName,
-                    subDomain, version, hostedZone, securityGroup,
+            var server = new FactorioServer(this, "factorio-server-" + serverName, serverName,
+                    domainName, version, hostedZone, securityGroup,
                     cluster, executionRole, taskRole, ecrRepo
             );
+            lambdaScale.addToRolePolicy(PolicyStatement.Builder.create()
+                    .resources(List.of("arn:aws:ecs:" + region + ":" + account + ":service/" +
+                            cluster.getClusterName() + "/" + server.service.getServiceName()))
+                    .actions(List.of("ecs:UpdateService"))
+                    .build());
         }
 
         var codeBuildDocker = PipelineProject.Builder.create(this, "dockerCodeBuild")
@@ -355,4 +370,5 @@ public class FactorioCluster extends Construct {
                 .build()
         );
     }
+
 }

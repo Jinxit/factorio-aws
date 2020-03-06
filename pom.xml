@@ -120,6 +120,16 @@
             <artifactId>apigateway</artifactId>
             <version>${cdk.version}</version>
         </dependency>
+        <dependency>
+            <groupId>software.amazon.awscdk</groupId>
+            <artifactId>lambda-event-sources</artifactId>
+            <version>${cdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awscdk</groupId>
+            <artifactId>lambda-destinations</artifactId>
+            <version>${cdk.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>com.amazonaws</groupId>

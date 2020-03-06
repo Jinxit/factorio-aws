@@ -1,14 +1,10 @@
 const AWS = require('aws-sdk');
 const rcon = require('rcon');
 
-const domainName = process.env.DOMAIN_NAME;
-
 exports.main = async function(event, context) {
     try {
-        var matches = /^\/([^\/]+?)\/?$/g.exec(event.path);
-
-        var response = await new Promise(((resolve, reject) => {
-            var client = new Rcon(event.serverName + '.' + domainName, 27015, password, {
+        const response = await new Promise((resolve, reject) => {
+            const client = new Rcon(event.serverName + '.' + process.env.DOMAIN_NAME, 27015, password, {
                 tcp: true,
                 challenge: false
             });
@@ -16,15 +12,15 @@ exports.main = async function(event, context) {
             client.on('error', err => reject(err));
             client.connect();
             client.send(event.command);
-        }));
+        });
 
         return {
             statusCode: 200,
-            headers: {"Content-Type": "text/plain"},
-            body: response
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({response})
         };
     } catch(error) {
-        var body = error.stack || JSON.stringify(error, null, 2);
+        const body = error.stack || JSON.stringify(error, null, 2);
         return {
             statusCode: 500,
             headers: {},
