@@ -89,10 +89,6 @@ public class FactorioCluster extends Construct {
                         .build()
         );
 
-        //var lambdaScaleRole = Role.Builder.create(this, "lambdaScaleRole")
-        //        .assumedBy(new ServicePrincipal("lambda.amazonaws.com"))
-        //        .build();
-
         var lambdaScale = Function.Builder.create(this, "lambdaScale")
                 .runtime(Runtime.NODEJS_12_X)
                 .layers(List.of(commonLayer))
@@ -102,7 +98,6 @@ public class FactorioCluster extends Construct {
                 )
                 .handler("scale.main")
                 .environment(Collections.singletonMap("CLUSTER", cluster.getClusterName()))
-                //.role(lambdaScaleRole)
                 .build();
 
         api.getRoot().addResource("scale").addResource("{service}").addMethod("PUT",

@@ -16,12 +16,7 @@ public class FactorioStack extends Stack {
                 .subnetConfiguration(List.of(
                         SubnetConfiguration.builder()
                                 .cidrMask(19)
-                                .name("Public1")
-                                .subnetType(SubnetType.PUBLIC)
-                                .build(),
-                        SubnetConfiguration.builder()
-                                .cidrMask(19)
-                                .name("Public2")
+                                .name("Public")
                                 .subnetType(SubnetType.PUBLIC)
                                 .build()
                 ))
