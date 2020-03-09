@@ -12,7 +12,7 @@ public class FactorioStack extends Stack {
         super(scope, id, props);
 
         var vpc = Vpc.Builder.create(this, "vpc")
-                .cidr(Vpc.DEFAULT_CIDR_RANGE)
+                .cidr("10.1.0.0/16")
                 .subnetConfiguration(List.of(
                         SubnetConfiguration.builder()
                                 .cidrMask(19)
