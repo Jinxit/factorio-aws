@@ -11,7 +11,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <cdk.version>1.25.0</cdk.version>
+        <cdk.version>1.27.0</cdk.version>
         <aws-sdk.version>1.11.728</aws-sdk.version>
     </properties>
 

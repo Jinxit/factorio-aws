@@ -1,7 +1,11 @@
 package io.doush.factorio;
 
 import software.amazon.awscdk.core.*;
+import software.amazon.awscdk.services.ec2.SubnetConfiguration;
+import software.amazon.awscdk.services.ec2.SubnetType;
 import software.amazon.awscdk.services.ec2.Vpc;
+
+import java.util.List;
 
 public class FactorioStack extends Stack {
     public FactorioStack(final Construct scope, String id, final StackProps props, String domainName) {
@@ -9,8 +13,19 @@ public class FactorioStack extends Stack {
 
         var vpc = Vpc.Builder.create(this, "vpc")
                 .cidr(Vpc.DEFAULT_CIDR_RANGE)
-                .subnetConfiguration(Vpc.DEFAULT_SUBNETS)
-                .maxAzs(3)
+                .subnetConfiguration(List.of(
+                        SubnetConfiguration.builder()
+                                .cidrMask(19)
+                                .name("Public1")
+                                .subnetType(SubnetType.PUBLIC)
+                                .build(),
+                        SubnetConfiguration.builder()
+                                .cidrMask(19)
+                                .name("Public2")
+                                .subnetType(SubnetType.PUBLIC)
+                                .build()
+                ))
+                .maxAzs(2)
                 .build();
 
         new FactorioCluster(this, "factorio-cluster", domainName, vpc, this.getRegion(), this.getAccount());
