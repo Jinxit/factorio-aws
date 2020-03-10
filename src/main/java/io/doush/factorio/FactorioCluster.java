@@ -26,9 +26,7 @@ import software.amazon.awscdk.services.ecr.Repository;
 import software.amazon.awscdk.services.ecr.TagStatus;
 import software.amazon.awscdk.services.ecs.Cluster;
 import software.amazon.awscdk.services.iam.*;
-import software.amazon.awscdk.services.lambda.Code;
-import software.amazon.awscdk.services.lambda.Function;
-import software.amazon.awscdk.services.lambda.LayerVersion;
+import software.amazon.awscdk.services.lambda.*;
 import software.amazon.awscdk.services.lambda.Runtime;
 import software.amazon.awscdk.services.lambda.eventsources.DynamoEventSource;
 import software.amazon.awscdk.services.lambda.eventsources.DynamoEventSourceProps;
@@ -284,6 +282,7 @@ public class FactorioCluster extends Construct {
                 .events(List.of(
                         new DynamoEventSource(dynamoTable, DynamoEventSourceProps.builder()
                                 .batchSize(1000)
+                                .startingPosition(StartingPosition.LATEST)
                                 .build()
                         )
                 ))
