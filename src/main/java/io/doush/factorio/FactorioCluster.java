@@ -209,13 +209,9 @@ public class FactorioCluster extends Construct {
                         ))
                         .privileged(true)
                         .build())
-                .vpc(vpc)
                 .build();
 
         ecrRepo.grantPullPush(codeBuildDocker.getGrantPrincipal());
-
-        var codeBuildPrincipal = new ServicePrincipal("codebuild.amazonaws.com");
-        var cdkRole = Role.Builder.create(this, "cdkRole").assumedBy(codeBuildPrincipal).build();
 
         var codeBuildCdk = PipelineProject.Builder.create(this, "cdkCodeBuild")
                 .environment(BuildEnvironment.builder()
@@ -228,38 +224,12 @@ public class FactorioCluster extends Construct {
                                         .build()
                         ))
                         .build())
-                .role(cdkRole)
-                .vpc(vpc)
                 .build();
 
-        cdkRole.addToPolicy(PolicyStatement.Builder.create()
+        codeBuildCdk.addToRolePolicy(PolicyStatement.Builder.create()
                 .actions(List.of("*"))
                 .resources(List.of("*"))
-                .build()
-        );
-
-        dynamoTable.grantReadData(cdkRole);
-        cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("IAMFullAccess")
-        );
-        cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("AmazonS3FullAccess")
-        );
-        cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("AmazonVPCFullAccess")
-        );
-        cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("AWSCodeDeployRoleForECS")
-        );
-        cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("AmazonECS_FullAccess")
-        );
-        cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("AWSCloudFormationFullAccess")
-        );
-        cdkRole.addManagedPolicy(
-                ManagedPolicy.fromAwsManagedPolicyName("CloudWatchFullAccess")
-        );
+                .build());
 
         var oauthToken = SecretValue.secretsManager("FactorioCredentials",
                 SecretsManagerSecretOptions.builder()
