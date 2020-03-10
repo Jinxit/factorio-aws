@@ -30,6 +30,8 @@ import software.amazon.awscdk.services.lambda.Code;
 import software.amazon.awscdk.services.lambda.Function;
 import software.amazon.awscdk.services.lambda.LayerVersion;
 import software.amazon.awscdk.services.lambda.Runtime;
+import software.amazon.awscdk.services.lambda.eventsources.DynamoEventSource;
+import software.amazon.awscdk.services.lambda.eventsources.DynamoEventSourceProps;
 import software.amazon.awscdk.services.route53.HostedZone;
 import software.amazon.awscdk.services.route53.HostedZoneProviderProps;
 import software.amazon.awscdk.services.s3.Bucket;
@@ -266,14 +268,32 @@ public class FactorioCluster extends Construct {
                         .jsonField("GitHub")
                         .build());
 
-        var artifactBucket = Bucket.Builder.create(this, "artifactBucket")
-                .removalPolicy(RemovalPolicy.DESTROY)
-                .build();
-
         var codePipeline = Pipeline.Builder.create(this, "pipeline")
                 .restartExecutionOnUpdate(true)
-                .artifactBucket(artifactBucket)
                 .build();
+
+        var triggerPipelineLambda = Function.Builder.create(this, "triggerPipelineLambda")
+                .runtime(Runtime.NODEJS_12_X)
+                .layers(List.of(commonLayer))
+                .code(Code.fromAsset("lambda", AssetOptions.builder()
+                        .exclude(List.of("node_modules"))
+                        .build())
+                )
+                .handler("pipeline.main")
+                .environment(Collections.singletonMap("PIPELINE", codePipeline.getPipelineName()))
+                .events(List.of(
+                        new DynamoEventSource(dynamoTable, DynamoEventSourceProps.builder()
+                                .batchSize(1000)
+                                .build()
+                        )
+                ))
+                .build();
+
+        triggerPipelineLambda.addToRolePolicy(PolicyStatement.Builder.create()
+                .actions(List.of("codepipeline:StartPipelineExecution"))
+                .resources(List.of(codePipeline.getPipelineArn()))
+            .build()
+        );
 
         codePipeline.getRole().grant(codeBuildCdk.getGrantPrincipal(), "*");
         codePipeline.getRole().grant(codeBuildDocker.getGrantPrincipal(), "*");

@@ -1,16 +1,11 @@
 const AWS = require('aws-sdk');
-const ecs = new AWS.ECS();
-
-const domainName = process.env.CLUSTER;
+const codePipeline = new AWS.CodePipeline();
 
 exports.main = async function(event, context) {
     try {
         var response = await new Promise((resolve, reject) => {
-            ecs.updateService({
-                service: event.pathParameters.service,
-                cluster: process.env.CLUSTER,
-                desiredCount: 1,
-                forceNewDeployment: false
+            codePipeline.startPipelineExecution({
+                name: process.env.PIPELINE
             }, function(err, data) {
                 if (err) reject(err);
                 else     resolve(data);

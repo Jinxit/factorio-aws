@@ -23,7 +23,7 @@ exports.main = async function(event, context) {
         const body = error.stack || JSON.stringify(error, null, 2);
         return {
             statusCode: 500,
-            headers: {},
+            headers: {"Content-Type": "application/json"},
             body: JSON.stringify(body)
         }
     }
