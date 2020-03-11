@@ -7,7 +7,7 @@ exports.main = async function(event, context) {
     try {
         var response = await new Promise((resolve, reject) => {
             ecs.updateService({
-                service: event.pathParameters.service,
+                service: "factorio-" + event.pathParameters.service,
                 cluster: process.env.CLUSTER,
                 desiredCount: 1,
                 forceNewDeployment: false

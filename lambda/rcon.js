@@ -13,15 +13,25 @@ exports.main = async function(event, context) {
                 else     resolve(data);
             });
         });
-        const response = await new Promise((resolve, reject) => {
-            const client = new Rcon(event.serverName + '.factorio.' + process.env.DOMAIN_NAME, 27015, password, {
+        const client = await new Promise((resolve, reject) => {
+            const client = new Rcon(event.pathParameters.serverName + '.factorio.' + process.env.DOMAIN_NAME, 27015, password.SecretString, {
                 tcp: true,
                 challenge: false
             });
-            client.on('response', str => resolve(str));
-            client.on('error', err => reject(err));
+            client.on('auth', () => {
+                resolve(client);
+            });
             client.connect();
-            client.send(event.command);
+        });
+
+        const response = await new Promise((resolve, reject) => {
+            client.on('response', str => {
+                resolve(str);
+            });
+            client.on('error', err => {
+                reject(err);
+            });
+            client.send(JSON.parse(event.body).command);
         });
 
         return {
