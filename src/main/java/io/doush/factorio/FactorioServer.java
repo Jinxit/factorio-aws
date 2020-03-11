@@ -1,9 +1,7 @@
 package io.doush.factorio;
 
 import org.jetbrains.annotations.NotNull;
-import software.amazon.awscdk.core.Construct;
-import software.amazon.awscdk.core.Duration;
-import software.amazon.awscdk.core.RemovalPolicy;
+import software.amazon.awscdk.core.*;
 import software.amazon.awscdk.services.applicationautoscaling.AdjustmentType;
 import software.amazon.awscdk.services.applicationautoscaling.BasicStepScalingPolicyProps;
 import software.amazon.awscdk.services.applicationautoscaling.EnableScalingProps;
@@ -23,6 +21,7 @@ import software.amazon.awscdk.services.s3.BlockPublicAccess;
 import software.amazon.awscdk.services.s3.Bucket;
 import software.amazon.awscdk.services.s3.BucketEncryption;
 import software.amazon.awscdk.services.s3.BucketProps;
+import software.amazon.awscdk.services.secretsmanager.Secret;
 
 import java.util.Collections;
 import java.util.List;
@@ -42,7 +41,7 @@ public class FactorioServer extends Construct {
                           String serverName, String domainName,
                           String version, IHostedZone hostedZone,
                           ISecurityGroup securityGroup, ICluster cluster, IRole executionRole,
-                          Role taskRole, IRepository ecrRepo) {
+                          Role taskRole, IRepository ecrRepo, Secret rconSecret) {
         super(scope, id);
 
 
@@ -75,6 +74,7 @@ public class FactorioServer extends Construct {
                             put("HOSTED_ZONE", hostedZone.getHostedZoneId());
                             put("DOMAIN", "factorio." + domainName);
                             put("SERVER_NAME", serverName);
+                            put("SECRET_NAME", rconSecret.getSecretArn());
                         }})
                         .essential(true)
                         .healthCheck(HealthCheck.builder()

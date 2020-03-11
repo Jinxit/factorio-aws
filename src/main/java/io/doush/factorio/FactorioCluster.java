@@ -26,14 +26,15 @@ import software.amazon.awscdk.services.ecr.Repository;
 import software.amazon.awscdk.services.ecr.TagStatus;
 import software.amazon.awscdk.services.ecs.Cluster;
 import software.amazon.awscdk.services.iam.*;
-import software.amazon.awscdk.services.lambda.*;
 import software.amazon.awscdk.services.lambda.Runtime;
+import software.amazon.awscdk.services.lambda.*;
 import software.amazon.awscdk.services.lambda.eventsources.DynamoEventSource;
 import software.amazon.awscdk.services.lambda.eventsources.DynamoEventSourceProps;
 import software.amazon.awscdk.services.route53.HostedZone;
 import software.amazon.awscdk.services.route53.HostedZoneProviderProps;
-import software.amazon.awscdk.services.s3.Bucket;
 import software.amazon.awscdk.services.s3.assets.AssetOptions;
+import software.amazon.awscdk.services.secretsmanager.Secret;
+import software.amazon.awscdk.services.secretsmanager.SecretStringGenerator;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -68,6 +69,13 @@ public class FactorioCluster extends Construct {
                 .code(Code.fromAsset("lambda"))
                 .build();
 
+
+        var rconSecret = Secret.Builder.create(this, "rconSecret")
+                .generateSecretString(SecretStringGenerator.builder()
+                        .excludePunctuation(true)
+                        .build())
+                .build();
+
         var lambdaRcon = Function.Builder.create(this, "lambdaRcon")
                 .runtime(Runtime.NODEJS_12_X)
                 .layers(List.of(commonLayer))
@@ -76,10 +84,13 @@ public class FactorioCluster extends Construct {
                         .build())
                 )
                 .handler("rcon.main")
-                .environment(Collections.singletonMap(
-                        "DOMAIN_NAME", domainName
-                ))
+                .environment(new TreeMap<>() {{
+                    put("DOMAIN_NAME", domainName);
+                    put("SECRET_NAME", rconSecret.getSecretArn());
+                }})
                 .build();
+
+        rconSecret.grantRead(lambdaRcon);
 
         api.getRoot().addResource("rcon").addResource("{serverName}").addMethod("POST",
                 LambdaIntegration.Builder.create(lambdaRcon)
@@ -159,12 +170,14 @@ public class FactorioCluster extends Construct {
                 .assumedBy(ecsTasksPrincipal)
                 .build();
 
-        var securityGroup = SecurityGroup.Builder.create(this, "securityGroup")
+        rconSecret.grantRead(taskRole);
+
+        var serverSecurityGroup = SecurityGroup.Builder.create(this, "serverSecurityGroup")
                 .vpc(vpc)
                 .build();
-        securityGroup.addIngressRule(Peer.anyIpv4(), Port.udp(34197));
-        securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(27015));
-        securityGroup.addEgressRule(Peer.anyIpv4(), Port.allTraffic());
+        serverSecurityGroup.addIngressRule(Peer.anyIpv4(), Port.udp(34197));
+        serverSecurityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(27015));
+        serverSecurityGroup.addEgressRule(Peer.anyIpv4(), Port.allTraffic());
 
         List<Map<String, AttributeValue>> items = new ArrayList<>();
         try {
@@ -187,8 +200,8 @@ public class FactorioCluster extends Construct {
             var serverName = item.get("serverName").getS();
             var version = item.get("version").getS();
             var server = new FactorioServer(this, "factorio-server-" + serverName, serverName,
-                    domainName, version, hostedZone, securityGroup,
-                    cluster, executionRole, taskRole, ecrRepo
+                    domainName, version, hostedZone, serverSecurityGroup,
+                    cluster, executionRole, taskRole, ecrRepo, rconSecret
             );
             lambdaScale.addToRolePolicy(PolicyStatement.Builder.create()
                     .resources(List.of("arn:aws:ecs:" + region + ":" + account + ":service/" +
@@ -261,7 +274,7 @@ public class FactorioCluster extends Construct {
         triggerPipelineLambda.addToRolePolicy(PolicyStatement.Builder.create()
                 .actions(List.of("codepipeline:StartPipelineExecution"))
                 .resources(List.of(codePipeline.getPipelineArn()))
-            .build()
+                .build()
         );
 
         codePipeline.getRole().grant(codeBuildCdk.getGrantPrincipal(), "*");
@@ -307,31 +320,34 @@ public class FactorioCluster extends Construct {
         if (items.size() > 0) {
             codePipeline.addStage(StageOptions.builder()
                     .stageName("Build")
-                    .actions(items.stream().map(server -> CodeBuildAction.Builder.create()
-                            .actionName(server.get("version").getS())
-                            .project(codeBuildDocker)
-                            .input(Artifact.artifact("factorio-docker"))
-                            .type(CodeBuildActionType.BUILD)
-                            .variablesNamespace("factorio-" + server.get("version")
-                                    .getS().replaceAll("\\.", "_"))
-                            .environmentVariables(new TreeMap<>() {{
-                                put("FACTORIO_VERSION",
-                                        BuildEnvironmentVariable.builder()
+                    .actions(items.stream()
+                            .map(server -> server.get("version").getS())
+                            .distinct()
+                            .map(version -> CodeBuildAction.Builder.create()
+                                    .actionName(version)
+                                    .project(codeBuildDocker)
+                                    .input(Artifact.artifact("factorio-docker"))
+                                    .type(CodeBuildActionType.BUILD)
+                                    .variablesNamespace("factorio-" +
+                                            version.replaceAll("\\.", "_"))
+                                    .environmentVariables(new TreeMap<>() {{
+                                        put("FACTORIO_VERSION",
+                                                BuildEnvironmentVariable.builder()
+                                                        .type(BuildEnvironmentVariableType.PLAINTEXT)
+                                                        .value(version)
+                                                        .build());
+                                        put("IMAGE_REPO_NAME",
+                                                BuildEnvironmentVariable.builder()
+                                                        .type(BuildEnvironmentVariableType.PLAINTEXT)
+                                                        .value(ecrRepo.getRepositoryName())
+                                                        .build());
+                                        put("AWS_ACCOUNT_ID", BuildEnvironmentVariable.builder()
                                                 .type(BuildEnvironmentVariableType.PLAINTEXT)
-                                                .value(server.get("version").getS())
+                                                .value(System.getenv("CDK_DEFAULT_ACCOUNT"))
                                                 .build());
-                                put("IMAGE_REPO_NAME",
-                                        BuildEnvironmentVariable.builder()
-                                                .type(BuildEnvironmentVariableType.PLAINTEXT)
-                                                .value(ecrRepo.getRepositoryName())
-                                                .build());
-                                put("AWS_ACCOUNT_ID", BuildEnvironmentVariable.builder()
-                                        .type(BuildEnvironmentVariableType.PLAINTEXT)
-                                        .value(System.getenv("CDK_DEFAULT_ACCOUNT"))
-                                        .build());
-                            }})
-                            .build()
-                    ).collect(Collectors.toList()))
+                                    }})
+                                    .build()
+                            ).collect(Collectors.toList()))
                     .build()
             );
         }
